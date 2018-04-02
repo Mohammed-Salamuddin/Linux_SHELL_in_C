@@ -1,3 +1,7 @@
+/*
+Making My own Linux shell (MR_SHELL) in C.
+*/
+
 #include <stdio.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -7,6 +11,7 @@
 #include <fcntl.h>
 #include "mr_header.h"
 #include <time.h>
+
 
 #define MR_READLINE_BUFSIZE 1024
 #define MR_TOK_BUFSIZE 64
