@@ -16,6 +16,7 @@
 #define MR_PROCESS_GROUP_SIZE 10
 
 //Global variables
+//blah
 int last_index;
 char infile[20];
 char outfile[20];
