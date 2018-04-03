@@ -1,7 +1,3 @@
-/*
-Making My own Linux shell (MR_SHELL) in C.
-*/
-
 #include <stdio.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -11,7 +7,8 @@ Making My own Linux shell (MR_SHELL) in C.
 #include <fcntl.h>
 #include "mr_header.h"
 #include <time.h>
-
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #define MR_READLINE_BUFSIZE 1024
 #define MR_TOK_BUFSIZE 64
@@ -902,6 +899,7 @@ int redirection_pipe_both(char *line)
 	else if(is_pipe == 1) 
 	{
 		cmds = mr_split_pipe(line);
+		//printf("\n------------------\n");
 		//if(source_flag==1)
 		cmds = mr_update_cmd_with_alias(cmds);	
 		status = mr_execute_pipe(cmds);
@@ -1088,20 +1086,35 @@ void mr_shell_start()
     {
 		int end_idx=0;
 		//printf("%s?>",getenv("PWD"));
-		printf("\n?>");
-		line = mr_read_line();	
-
-	L1:	end_idx = strlen(line)-1;
-		if(line[end_idx]=='\\')
+		//printf("\n?>");
+	    char* buf;
+ 
+		buf = readline("\n?>");
+    	if (strlen(buf) != 0) 
 		{
-			printf(">");
-			next_line = mr_read_line();
-			//remove \ and then combine.
-			line[strlen(line)-1] = '\0';
-			strcat(line,next_line);
+			strcpy(line, buf);
 			
-			goto L1;
+			L1:	end_idx = strlen(line)-1;
+			if(line[end_idx]=='\\')
+			{
+				//printf(">");
+				//next_line = mr_read_line();
+				next_line = readline(">");
+				//remove \ and then combine.
+				line[strlen(line)-1] = '\0';
+				strcat(line,next_line);
+				
+				goto L1;
+			}
+			
+        	add_history(line);
+        		
 		}
+		else
+			continue;
+		//printf("\nrl:%s\n",buf);
+		//line = mr_read_line();
+
 
 		mr_history_helper(line);
 
