@@ -14,17 +14,17 @@
 #define MR_TOK_BUFSIZE 64
 #define MR_TOK_DELIM " \t\r\n\a"
 #define MR_PROCESS_GROUP_SIZE 10
+#define MR_HISTORY_SIZE 25
 
 //Global variables
-//blah
 int last_index;
 char infile[20];
 char outfile[20];
-//int source_flag = 0;
 char *alias_cmd[50]; //can story 50 cmds
 char *long_cmd[50];
 int alias_idx=0;
 int is_in_redirection=0,is_out_redirection=0;
+
 /*
   List of builtin commands.
  */
@@ -62,17 +62,11 @@ struct history
 	char* cur_time;
 	int pid;
 	
-}hist_list[30];
-int h=0;
-//char* history_list[30]={NULL};
+}hist_list[MR_HISTORY_SIZE];
+int h=0; //history index
 
 int mr_history(char** args)
 {
-	//int i=0;	
-	//history_list[i]=args[0];
-	//args[0] = "salam";
-	//printf("\n%s-%s----------",history_list[0],args[0]);
-	//i++;
 	if(args[1]==NULL)
 	{
 		int j=0;	
@@ -90,7 +84,7 @@ int mr_history(char** args)
 	pipe(pipe_fd);
 
 	//history is written into the pipe.
-	//read from the pipe and do grep
+	//read from the pipe and do grep	
 	if(args[1]!=NULL)
 	{
 		
@@ -157,10 +151,10 @@ int mr_cd(char **args)
   return 1;
 }
 
-/**
-   @brief Builtin command: print help.
-   @param args List of args.  Not examined.
-   @return Always returns 1, to continue executing.
+/*
+   brief Builtin command: print help.
+   param args List of args.  Not examined.
+   return Always returns 1, to continue executing.
  */
 
 int mr_help(char **args)
@@ -178,25 +172,11 @@ int mr_help(char **args)
   return 1;
 }
 
-/**
-   @brief Builtin command: exit.
-   @param args List of args.  Not examined.
-   @return Always returns 0, to terminate execution.
- */
-
 int mr_exit(char **args)
 {
   printf("Khuda hafiz...\n");
   return 0;
 }
-
-
-/**
-   @brief Execute shell built-in or launch program.
-   @param args Null terminated list of arguments.
-   @return 1 if the shell should continue running, 
-   0 if it should terminate
- */
 
 int mr_execute(char **args)
 {
@@ -208,33 +188,22 @@ int mr_execute(char **args)
 	if (args[0] == NULL)
 		return 1;// An empty command was entered.
 	
-	args = mr_update_cmd_with_alias(args);
+	args = mr_substitute_with_alias(args);
 
 	int i;
 	for (i = 0; i < mr_num_builtins(); i++) 
 		if (strcmp(args[0], builtin_str[i]) == 0)  //or send args[0] to the switch,it will match the case and call the respective function.
 			return (*builtin_func[i])(args);
 
-	return mr_launch(args);
+	return mr_just_exec(args);
 }
 
-
-/**
-  @brief Launch a program and wait for it to terminate.
-  @param args Null terminated list of arguments (including program).
-  @return Always returns 1, to continue execution.
- */
-
-
-int mr_launch(char **args)
+int mr_just_exec(char **args)
 {
 	pid_t pid;
 	int status;
-  	//extern char **environ;
-	//char *env_init[] = { "USER=unknown", "PATH=/home/salam/Desktop/USP/USP-class-progs/ch6-7_i guess/echoall", NULL };
-	char* mr_env[] = {"USER=unknown", "PATH=/bin", NULL};
-	//environ = mr_env;
 
+	char* mr_env[] = {"USER=unknown", "PATH=/bin", NULL};
   	setenv("USER","salam_raihan",1);
   	setenv("PATH",".:/home/salam/.local/share/umake/bin:/home/salam/bin:/home/salam/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",1);
   	setenv("SHELL","/home/salam/Desktop/USP_project_2/mr",1);
@@ -242,31 +211,16 @@ int mr_launch(char **args)
 	pid = fork();
 	if (pid == 0) 
 	{
-		
-		// Child process
-		/*NOTES
-			1. use execve so that we can set the environ variable
-				execve("/home/salam/Desktop/USP/USP-class-progs/ch6-7_i guess/echoall",args,mr_env)
-			problem is how to specify the path for the commands?
-
-			2. create a name value pair of PATH,SHELL,CWD and override in the env list.
-				use set and get env to set the PATH,and get to fetch the path on to a variable
-				and place that variable in the exec
-		*/
-
-		
-    	//printf("%s  %s\n",args[0],args[1]);
-		//if (execve("/bin/ls",args,mr_env) == -1)
 		if (execvp(args[0], args) == -1)
-    		perror("mr execvp");    
-		//this is only executed when the exec fails,coz exec changes the whole child 
-		//program to the passed program,there fore the rest of the code in the child is not executed.
-		//printf("before EXIT_FAILURE\n");
+    		perror("mr execvp");
+		/*note
+		this is only executed when the exec fails,coz exec changes the whole child 
+		to the passed program,therefore the rest of the code in the child is not executed.
+		*/
 		exit(EXIT_FAILURE);
 	} 
 	else if (pid < 0)
-		perror("mr:Error forking"); // Error forking
-	
+		perror("mr:Error forking");
 	else 
 	{
 		hist_list[h-1].pid = pid;
@@ -282,9 +236,9 @@ int mr_launch(char **args)
 
 
 /*
-   @brief Split a line into tokens (very naively).
-   @param line The line.
-   @return Null-terminated array of tokens.
+   	brief Split a line into tokens (very naively).
+	param line The line.
+   	return Null-terminated array of tokens.
  */
 
 
@@ -366,47 +320,16 @@ char *mr_read_line(void)
   	}
 }
 
-//return 1 if < present ...useless
-int mr_check_infile(char *last_cmd)
-{
-	char a;
-	printf("printing last cmd:%s\n",last_cmd);
-	for(int i=0;i<strlen(last_cmd);i++)
-	{
-		a = last_cmd[i];
-		//printf("\na %c",a);
-		if(a=='<')
-		{
-			//printf("\nfound <");
-			return 1;
-		}
-	}
-	//printf("\nnot found <\n");
-	return 0;
-}
-
-//purify the last command...useless
-char* mr_pure_last_cmd(char *last_cmd)
-{
-	last_cmd = strsep(&last_cmd,">");
-	printf("pure last command:%s\n",last_cmd);
-	return last_cmd;
-}
-
 //execute the commands seperated by pipes.
-int mr_execute_pipe(char **cmds)
+int mr_execute_pipe(char **cmds,int pipe_count)
 {
-	
-	//int num_pipes = count_pipes(); //make it global?
-	int num_pipes = last_index;
-
     char ** args;
-	pid_t pid;   //assuming only 2 commands
+	pid_t pid;
 	int status;
 
-	int pipefds[2*num_pipes]; 
+	int pipefds[2*pipe_count]; 
     
-	for(int k=0;k<num_pipes;k++)
+	for(int k=0;k<pipe_count;k++)
 	{
 		if(pipe(pipefds + k*2)<0)
 		{
@@ -418,12 +341,12 @@ int mr_execute_pipe(char **cmds)
 	int i=0;
 	int j=0;
 	
-	while(cmds[i]!=NULL)  //i=0,1
+	while(cmds[i]!=NULL)
 	{	
 		args = mr_split_line(cmds[i]);
 
 		//do the alias here! done
-		args = mr_update_cmd_with_alias(args);		
+		args = mr_substitute_with_alias(args);		
 
         pid = fork();
 		if(pid < 0)
@@ -455,7 +378,7 @@ int mr_execute_pipe(char **cmds)
 			}
 		
 			// close all pipe-fds
-			for(i = 0; i < 2 * num_pipes; i++)
+			for(i = 0; i < 2 * pipe_count; i++)
 			{
 				close(pipefds[i]);
 			}
@@ -473,35 +396,30 @@ int mr_execute_pipe(char **cmds)
 
 
 	/**Parent closes the pipes and wait for children*/
-	for(i = 0; i < 2 * num_pipes; i++)
+	for(i = 0; i < 2 * pipe_count; i++)
 	{
 		close(pipefds[i]);
 	}
 
 	//only the parent gets here and waits for pipes+1(coz if 1 pipe then 2 cmds) children to finish
-	for(i = 0; i < num_pipes + 1; i++)
+	for(i = 0; i < pipe_count + 1; i++)
 		wait(&status);	
 
 	//if anything goes worng,perror will take care.
 
-
 	return 1;
 }
 
-int mr_execute_both(char**cmds)
+int mr_execute_both(char**cmds,int pipe_count)
 {
-	
-
-	//int num_pipes = count_pipes(); //make it global?
-	int num_pipes = last_index;
-
+	printf("\ncount of pipes:%d",pipe_count);
     char ** args;
-	pid_t pid;   //assuming only 2 commands,not anymore
+	pid_t pid;  
 	int status;
 
-	int pipefds[2*num_pipes]; 	
+	int pipefds[2*pipe_count]; 	
     
-	for(int k=0;k<num_pipes;k++)
+	for(int k=0;k<pipe_count;k++)
 	{
 		if(pipe(pipefds + k*2)<0)
 		{
@@ -512,11 +430,11 @@ int mr_execute_both(char**cmds)
 
 	int i=0;
 	int j=0;
-	while(cmds[i]!=NULL)  //i=0,1
+	while(cmds[i]!=NULL)  
 	{	
 		args = mr_split_line(cmds[i]);
 
-		args = mr_update_cmd_with_alias(args);
+		args = mr_substitute_with_alias(args);
 
         pid = fork();
 		if(pid < 0)
@@ -561,20 +479,20 @@ int mr_execute_both(char**cmds)
 				int outfile_fd = open(outfile,O_RDWR|O_APPEND);
 				
 				if(dup2(outfile_fd,STDOUT_FILENO)<0)
-				{
+				{	
 					perror("dup2");
                     exit(EXIT_FAILURE);
 				}
 			}
 		
 			// close all pipe-fds
-			for(i = 0; i < 2 * num_pipes; i++)
+			for(i = 0; i < 2 * pipe_count; i++)
 			{
 				close(pipefds[i]);
 			}
 
             if (execvp(args[0], args) == -1)
-                perror("mr execvp_of_pipe_1");
+                perror("mr execvp_of_both_1");
             exit(EXIT_FAILURE); 
 
         }//childs ends
@@ -585,13 +503,13 @@ int mr_execute_both(char**cmds)
     }
 
 	/**Parent closes the pipes and wait for children*/
-	for(i = 0; i < 2 * num_pipes; i++)
+	for(i = 0; i < 2 * pipe_count; i++)
 	{
 		close(pipefds[i]);
 	}
 
 	//only the parent gets here and waits for pipes+1(coz if 1 pipe then 2 cmds) children to finish
-	for(i = 0; i < num_pipes + 1; i++)
+	for(i = 0; i < pipe_count + 1; i++)
 		wait(&status);	
 
 	//if anything goes worng,perror will take care.
@@ -610,7 +528,7 @@ int mr_execute_redirection(char **cmds)
     pid_t pid;
 
     args = mr_split_line(cmds[0]); //only cmds[0] exits,eg cat<in
-	args = mr_update_cmd_with_alias(args);
+	args = mr_substitute_with_alias(args);
 
     pid = fork();
     if(pid < 0)
@@ -687,11 +605,19 @@ char** mr_split_both(char *line)
 
 	for(int i=0;i<MR_PROCESS_GROUP_SIZE;i++)
 	{
-		//strsep keeps removing from line so after this for loop its NULL
-		//uncomment the below print to see.
+		/* note
+		strsep keeps removing from line so after this for loop its NULL
+		uncomment the below print to see.
+			?>cat|ls<in>out
+			i=0,cmds:cat,line:ls<in>out
+			i=1,cmds:ls,line:in>out
+			i=2,cmds:in,line:out
+			i=3,cmds:out,line:(null)
+			i=4,cmds:(null),line:(null)
+		*/
 		cmds[i] = strsep(&line,"|><\n");
 		
-        //printf("\nmr_split_both %d:%s:\n%s",i,cmds[i],line);		
+        //printf("\ni=%d,cmds:%s,line:%s\n",i,cmds[i],line);		
 		if(cmds[i]==NULL)
 		{			
 			last_index = i-1;
@@ -700,16 +626,7 @@ char** mr_split_both(char *line)
 
 	}
 
-//printf("\n--------------1\n");
-/*	//meaning no > output file
-	if(i==0)
-	{
-
-	}
-	else if(j==0)
-	{
-
-	}*/
+	//if infile is after out file.  ie cat>out<in
     if(i<j)
     {
         strcpy(infile,cmds[last_index]);
@@ -723,14 +640,7 @@ char** mr_split_both(char *line)
     cmds[last_index] = NULL;
     cmds[last_index-1] = NULL;
 
-/*	int p=0;
-	while(cmds[p]!=NULL)
-	{
-		printf("\n%s",cmds[p]);
-		p++;
-	}
-*/
-	//pure cmds
+	//pure cmds with redirections removed.
     return cmds;
 }
 
@@ -791,9 +701,6 @@ char** mr_split_redirection(char* line)
 	}
 	cmds[last_index] = NULL;
 
-
-	
-
     //cmds[0] = cd and cmds[1] = filename
     return cmds;
 }
@@ -829,166 +736,119 @@ int mr_is_redirection(char* line)
 //checks only for 1 pipe
 int mr_is_pipe(char *line)
 {	
+	int pipe_count=0;
 	for(int i=0;i<strlen(line);i++)
 		if(line[i] == '|')
-			return 1;
-	return 0;
+			pipe_count++;
+	if(pipe_count!=0)
+		return pipe_count;
+	else
+		return 0;
 }
 
-//useless
-int mr_is_both(char* line)
-{
-	
-	for(int i=0;i<strlen(line);i++)
-	{
-        if(line[i] == '|')
-		{
-			//printf("\n2---------------\n");
-		    if(line[i] == '<')  //gives seg fault
-			{				
-			    return 1;
-			}
-			else if(line[i] == '>')
-			{
-				printf("\n2---------------\n");
-			    return 1;					
-			}
-		}
-	}
-	return 0;     
-}
-
-
-
-int redirection_pipe_both(char *line)
+/*
+does checking for
+1. pipe
+2. redirection
+3. normal cmd
+*/
+int mr_grand(char *line)
 {
 	int is_redirection=0;
-	int is_pipe=0;
+	int is_pipe_count=0;
 	int is_both=0;
 
     char **args;    
     char **cmds;
     int status;
 
-	//is_both = mr_is_both(line);
 	is_redirection = mr_is_redirection(line);
-	is_pipe = mr_is_pipe(line);
-	//printf("\n---------------%d,%d\n",is_redirection,is_pipe);	
+	is_pipe_count = mr_is_pipe(line);
 
-	///check if a pipe and redirection exists eg cat|wc>out<in
-    //if(is_both == 1)
-	if(is_redirection && is_pipe)
+	//cat|wc<in>out
+	if(is_redirection && is_pipe_count)
     {			
-		cmds = mr_split_both(line);
-		//if(source_flag==1)
-		cmds = mr_update_cmd_with_alias(cmds);
-		status = mr_execute_both(cmds);
+		cmds = mr_split_both(line);   //cmds will have pointers to pure commands like ls,cat and redirection is removed.
+		cmds = mr_substitute_with_alias(cmds);
+		status = mr_execute_both(cmds,is_pipe_count);
     }
-
 
     //checks if redirection exists eg cat<in
     else if(is_redirection == 1)
     {
         cmds = mr_split_redirection(line);
-		//if(source_flag==1)
-		cmds = mr_update_cmd_with_alias(cmds);
+		cmds = mr_substitute_with_alias(cmds);
         status = mr_execute_redirection(cmds);        
     }
 
-
     //checks if only pipe exists eg ls|wc
-	else if(is_pipe == 1) 
+	else if(is_pipe_count) 
 	{
 		cmds = mr_split_pipe(line);
-		//printf("\n------------------\n");
-		//if(source_flag==1)
-		cmds = mr_update_cmd_with_alias(cmds);	
-		status = mr_execute_pipe(cmds);
+		cmds = mr_substitute_with_alias(cmds);	
+		status = mr_execute_pipe(cmds,is_pipe_count);
 	}
-
 
     //pure cammand eg ls -l or wc or pwd
 	else
 	{
-		//if(source_flag==1)
 		line = mr_do_alias_maping(line);
 		args = mr_split_line(line);
     	status = mr_execute(args); 
-		//printf("\n%s-----------",args[0]);
 	}
-
-	
-	//int *p = **args;
-	//printf("%s\n",*p);
-	//printf("%s\n",*args); //given address of a string to the %s,it prints till delimiter. **args will be the address(int)
-   //free(args);
-   //free(cmds);
-   
+ 
 	//status is always 1,on error perror will take care.
    return status;
 }
 
 void mr_history_helper(char* line)
 {
-	/*history_list[h++] = line;
-	if(h==29)
-	{
-		for(int i=0;i<=h;i++)
-			history_list[i] = NULL;
-		h=0;
-	}*/
 	time_t mytime;
 	struct tm * timeinfo;
 	time(&mytime);
 	timeinfo = localtime(&mytime);
 
-
+	//see if the history table is full,size is 25.	
+	if(h==MR_HISTORY_SIZE)   //h == 25  
+	{
+		for(int i=1;i<=h-1;i++)
+		{			
+			strcpy(hist_list[i-1].history,hist_list[i].history);
+			strcpy(hist_list[i-1].cur_time,hist_list[i].cur_time);
+			hist_list[i-1].pid = hist_list[i].pid;
+		}
+		
+		//hist_list[h-1].history = NULL;   gives segv why?
+		//hist_list[h-1].cur_time = NULL;
+		hist_list[h-1].pid = 0;
+		strcpy(hist_list[h-1].history,line);
+		strcpy(hist_list[h-1].cur_time,asctime(timeinfo));
+		return;
+	}
 	hist_list[h].history = malloc(MR_READLINE_BUFSIZE*sizeof(char));
 	hist_list[h].cur_time = malloc(50*sizeof(char));
 
-	//hist_list[h].history = line;
+	//hist_list[h].history = line; //never do this!
 	strcpy(hist_list[h].history,line);
 	strcpy(hist_list[h].cur_time,asctime(timeinfo));
 	h++;
 
-	//if full free the whole hsitory list.
-	
-	if(h==29)
-	{
-		for(int i=0;i<=h;i++)
-		{
-			hist_list[i].history = NULL;
-			hist_list[i].cur_time = NULL;
-			//history_list[i] = NULL;
-		}
-		h=0;
-	}
-
+	return;
 }
 
-char** mr_update_cmd_with_alias(char **cmds)
+char** mr_substitute_with_alias(char **cmds)
 {
 	int i=0;
 	while(cmds[i]!=NULL)
 	{
-		//printf("\nbefore aliass:%s:\n",cmds[i]);
 		strcpy(cmds[i],mr_do_alias_maping(cmds[i]));
-		//printf("\nafter aliass:%s:\n",cmds[i]);
 		i++;
-	}	
-
+	}
 	return cmds;
 }
 
 char * mr_do_alias_maping(char *line)
 {
-	/*int j=0;
-	while(j<alias_idx)
-	{
-		printf("\n%s::%s\n",alias_cmd[j],long_cmd[j]);
-		j++;
-	}*/
-
 	int i=0;
 	while(i<alias_idx)
 	{
@@ -1005,14 +865,13 @@ int mr_is_source_cmd(char *line)
 {
 	if(strcmp(line,"source aliasrc.")==0)
 	{
-		//source_flag = 1;
-		//create the mapping arrays here.
-		mr_sourcing();
+		mr_sourcing(); 
 		return 1;
 	}	
 	return 0;
 }
 
+//creates alias to original cmds mappings.uses the aliasrc. file
 void mr_sourcing()
 {
     FILE *fp;
@@ -1069,25 +928,19 @@ void mr_sourcing()
 
 }
 
-
-
-
 void mr_shell_start()
 {
-    char *line;
+    char *line;  	//stores the cmd eg: ls -l
     int status;
 	int i;
 	char *next_line;
 	
-
-	// printing greeting message!
 	printf("\n---------------Assalamualaikum!,Khairiat %s bhai?-----------------\n\n\n",getenv("USER"));
-	printf("Begin\n");
+	printf("Lets Begin\n");
+
     do 
     {
 		int end_idx=0;
-		//printf("%s?>",getenv("PWD"));
-		//printf("\n?>");
 	    char* buf;
  
 		buf = readline("\n?>");
@@ -1095,47 +948,29 @@ void mr_shell_start()
 		{
 			strcpy(line, buf);
 			
-			L1:	end_idx = strlen(line)-1;
+		L1:	end_idx = strlen(line)-1;
 			if(line[end_idx]=='\\')
 			{
-				//printf(">");
-				//next_line = mr_read_line();
-				next_line = readline(">");
-				//remove \ and then combine.
-				line[strlen(line)-1] = '\0';
-				strcat(line,next_line);
-				
+				next_line = readline(">");				
+				line[strlen(line)-1] = '\0';  //remove \ and then combine.
+				strcat(line,next_line);				
 				goto L1;
 			}
 			
-        	add_history(line);
-        		
+        	add_history(line);        		
 		}
 		else
 			continue;
-		//printf("\nrl:%s\n",buf);
-		//line = mr_read_line();
-
 
 		mr_history_helper(line);
 
-/*	if source aliasrc. is typed,then all the commands following it should pass through the 
-	comparison process with their aliases
+		if(mr_is_source_cmd(line))  //if source aliasrc. calls sourcing(),which will store maping globally. 
+			continue;               //since its a source aliasrc. cmd no need to execute.
 
-	last alias pair in the aliasrc. file should have \n terminated anything else will give segv
-*/
-		if(mr_is_source_cmd(line))  //sets the flag to 1 and calls sourcing(),which will store maping globally. 
-			continue;
-
-		status = redirection_pipe_both(line);
-		
-		//free(line);
-		//printf("\n end---------------\n");
+		status = mr_grand(line);
 
     } while (status);
 }
-
-
 
 int main(int argc,char **argv)
 {
@@ -1144,19 +979,3 @@ int main(int argc,char **argv)
     mr_shell_start();
     return EXIT_SUCCESS;
 }
-
-/*
-environment variables
-	functons : getenv,putenv,setenv,unsetenv
-	strings "name=value" are stored in the array of pointers-THe environment list
-	stored in the process's memory space,above the stack
-	the last pointer in the array is pointed to NULL.
-
-	if no space for the environment list ,do malloc and store it in the heap.
-
-*/
-
-
-
-
-
