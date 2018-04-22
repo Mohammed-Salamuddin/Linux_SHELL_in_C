@@ -13,7 +13,7 @@
 #define MR_READLINE_BUFSIZE 1024
 #define MR_TOK_BUFSIZE 64
 #define MR_TOK_DELIM " \t\r\n\a"
-#define MR_PROCESS_GROUP_SIZE 10
+#define MR_PROCESS_GROUP_SIZE 50
 #define MR_HISTORY_SIZE 25
 
 //Global variables
@@ -67,12 +67,15 @@ int h=0; //history index
 
 int mr_history(char** args)
 {
+	char* ct = malloc(sizeof(char)*30);
 	if(args[1]==NULL)
 	{
 		int j=0;	
 		while(hist_list[j].history!=NULL)
 		{
-			printf("  %d  %s         %d  %s",j+1,hist_list[j].history,hist_list[j].pid,hist_list[j].cur_time);
+			strcpy(ct,hist_list[j].cur_time);
+			ct[strlen(ct)-1] = '\0'; 
+			printf("  %d  %d  %s     %s\n",j+1,hist_list[j].pid,ct,hist_list[j].history);
 			j++;
 		}
 		return 1;
@@ -263,7 +266,7 @@ char **mr_split_line(char *line)
       tokens_backup = tokens;
       tokens = realloc(tokens, bufsize * sizeof(char*));
       if (!tokens) {
-		free(tokens_backup);
+		//free(tokens_backup);
         fprintf(stderr, "mr: allocation error\n");
         exit(EXIT_FAILURE);
       }
@@ -389,7 +392,7 @@ int mr_execute_pipe(char **cmds,int pipe_count)
         }
 		hist_list[h-1].pid = pid;
 
-        free(args);
+        //free(args);
         i++;
 		j+=2;
     }
@@ -497,7 +500,7 @@ int mr_execute_both(char**cmds,int pipe_count)
 
         }//childs ends
 		hist_list[h-1].pid = pid;
-        free(args);
+        //free(args);
         i++;
 		j+=2;
     }
@@ -849,15 +852,19 @@ char** mr_substitute_with_alias(char **cmds)
 
 char * mr_do_alias_maping(char *line)
 {
+	char *l = malloc(sizeof(char)*MR_READLINE_BUFSIZE);
+
 	int i=0;
 	while(i<alias_idx)
 	{
         //printf("\n%s:\n",alias_cmd[i]);
 		if(strcmp(alias_cmd[i],line)==0)
-			return long_cmd[i];
+		{
+			strcpy(l,long_cmd[i]);
+			return l;
+		}
 		i++;
 	}
-
 	return line;
 }
 
@@ -928,9 +935,33 @@ void mr_sourcing()
 
 }
 
+char *mr_custom(char *line)
+{
+	char** cmds;
+	char* l = malloc(sizeof(char)*MR_READLINE_BUFSIZE);
+	
+	strcpy(l,line);
+	cmds = mr_split_line(l);
+	
+	if(strcmp(line,"ps -z")==0)
+		strcpy(line,"ps -all|grep defunct");
+
+	else if(strcmp(cmds[0],"deepsearch")==0 || strcmp(cmds[0],"ds")==0)	
+	{
+		if(cmds[1]!=NULL)  //only ds gives segv
+		{
+			strcpy(line,"find . -type f -print | xargs grep ");
+			strcat(line,cmds[1]);
+		}
+	}
+
+	return line;
+}
+
 void mr_shell_start()
 {
     char *line;  	//stores the cmd eg: ls -l
+	line = malloc(sizeof(char)*MR_READLINE_BUFSIZE);
     int status;
 	int i;
 	char *next_line;
@@ -942,7 +973,7 @@ void mr_shell_start()
     {
 		int end_idx=0;
 	    char* buf;
- 
+		
 		buf = readline("\n?>");
     	if (strlen(buf) != 0) 
 		{
@@ -966,9 +997,10 @@ void mr_shell_start()
 
 		if(mr_is_source_cmd(line))  //if source aliasrc. calls sourcing(),which will store maping globally. 
 			continue;               //since its a source aliasrc. cmd no need to execute.
-
+		
+		line = mr_custom(line);
 		status = mr_grand(line);
-
+		
     } while (status);
 }
 
