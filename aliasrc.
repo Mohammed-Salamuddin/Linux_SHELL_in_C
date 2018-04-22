@@ -7,3 +7,4 @@ alias dateu=date -u
 alias day=date +%A
 alias dus=du -s
 alias ll=ls -l
+alias p=pwd

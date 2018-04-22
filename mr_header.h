@@ -30,3 +30,5 @@ char * mr_do_alias_maping(char *line);
 int mr_is_source_cmd(char *line);
 void mr_sourcing();
 int mr_execute_redirection(char **cmds);
+
+char *mr_custom(char *line);
