@@ -966,7 +966,7 @@ void mr_shell_start()
 	int i;
 	char *next_line;
 	
-	printf("\n---------------Assalamualaikum!,Khairiat %s bhai?-----------------\n\n\n",getenv("USER"));
+	printf("\n---------------welcome to MR_SHELL mr %s !-----------------\n\n",getenv("USER"));
 	printf("Lets Begin\n");
 
     do 
@@ -1006,8 +1006,8 @@ void mr_shell_start()
 
 int main(int argc,char **argv)
 {
-	printf("mains pid %d\n",getpid());
-	mr_sourcing();	
+	//printf("mains pid %d\n",getpid());
+	mr_sourcing();
     mr_shell_start();
     return EXIT_SUCCESS;
 }
